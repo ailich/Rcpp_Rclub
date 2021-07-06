@@ -1,0 +1,744 @@
+---
+title: "Rcpp RClub Lesson"
+author: "Alexander R. Ilich"
+date: "7/3/2021"
+output: 
+  html_notebook:
+    toc: true
+    toc_float: true 
+    toc_depth: 6
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Note: Many of the examples and text shown here are adapted from or blatantly copied and pasted from [Rcpp for everyone](https://teuder.github.io/rcpp4everyone_en/)
+
+# R vs C++
+
+-   **R is a high level "interpreted" programming language**. This makes it fast to develop code, but slower to execute since it is run line by line.
+
+-   **C++ is a low level "compiled" language**. It takes more time to write code but it will execute faster. This is because the code must be compiled before execution. A compiler will figure out the optimal order to execute code rather than running it line by line.
+
+# When to use C++
+
+C++ can be useful to speed up bottlenecks in your R code. For loops that are not easily vectorized represent an example of something that can take a long time in R but would be very fast in C++. Examples of this include:
+
+-   Rolling means (e.g. RcppRoll package)
+
+-   focal/moving window analyses (raster package implements most common focal statistics in C++)
+
+-   pair-wise distances (e.g. `vegdist` in the vegan package is implemented in C)
+
+# How to use C++ with R
+
+The `Rcpp` package and related packages provide a way to integrate C++ into your R code
+
+```{r}
+library(Rcpp)
+```
+
+# C++ Basics
+
+-   Indexing starts at 0 not 1
+-   You must declare the variables/outputs and their type and dimension
+-   `//` indicates a comment in C++
+-   `;` indicates the end of a line of code
+
+# Data Types
+
++----------+-------------+------------------------------------+------------------------------------+-------------+------------+
+| Value    | R vector    | Rcpp vector                        | Rcpp matrix                        | Rcpp scalar | C++ scalar |
++==========+=============+====================================+====================================+=============+============+
+| Logical  | `logical`   | `LogicalVector`                    | `LogicalMatrix`                    | \-          | `bool`     |
++----------+-------------+------------------------------------+------------------------------------+-------------+------------+
+| Integer  | `integer`   | `IntegerVector`                    | `IntegerMatrix`                    | \-          | `int`      |
++----------+-------------+------------------------------------+------------------------------------+-------------+------------+
+| Real     | `numeric`   | `NumericVector`                    | `NumericMatrix`                    | \-          | `double`   |
++----------+-------------+------------------------------------+------------------------------------+-------------+------------+
+| Complex  | `complex`   | `ComplexVector`                    | `ComplexMatrix`                    | `Rcomplex`  | `complex`  |
++----------+-------------+------------------------------------+------------------------------------+-------------+------------+
+| String   | `character` | `CharacterVector` (`StringVector`) | `CharacterMatrix` (`StringMatrix`) | `String`    | `string`   |
++----------+-------------+------------------------------------+------------------------------------+-------------+------------+
+| Date     | `Date`      | `DateVector`                       | \-                                 | `Date`      | \-         |
++----------+-------------+------------------------------------+------------------------------------+-------------+------------+
+| Datetime | `POSIXct`   | `DatetimeVector`                   | \-                                 | `Datetime`  | `time_t`   |
++----------+-------------+------------------------------------+------------------------------------+-------------+------------+
+
+| R            | Rcpp        |
+|--------------|-------------|
+| `data.frame` | `DataFrame` |
+| `list`       | `List`      |
+| S3 class     | `List`      |
+| S4 class     | `S4`        |
+
+[Source: Rcpp for everyone](https://teuder.github.io/rcpp4everyone_en/070_data_types.html#vector-and-matrix)
+
+In addition to Rcpp defined data types there are data types in the standard (std) C++ library that can be used. For more details click this [link](https://teuder.github.io/rcpp4everyone_en/300_STL.html). Additionally, there are other classes from external libraries (e.g. armadillo and eigen) that you can use as well.
+
+# Defining Functions
+
+Functions in C++ are defined with the following structure:
+
+```{r eval=FALSE}
+OutputType FunctionName(ArgumentType ArgumentName, ArgumentType2 ArgumentName2, …){
+  Function Body; 
+  return output;
+  }
+```
+
+In C++ code you must define the types and dimensions of your variables/outputs and cannot reassign them (you can update them).
+
+## Source a C++ Function
+
+To make a C++ function we can create a new C++ script and then source the file.
+
+In Rstudio, File \> New File \> C++ File
+
+This will include the appropriate header to include Rcpp classes and some example code.
+
+Before a function you must include:
+
+`// [[Rcpp::export]]`
+
+I have a function called `multiply`
+
+```{r}
+sourceCpp("src/multiply.cpp")
+```
+
+Now that we've sourced the function it is defined in our R environment.
+
+```{r}
+multiply(x = 3, y = 4)
+```
+
+## Create a function with `cppFunction`
+
+Alternatively, we can also define functions within an R script by placing the function as text within a call to `cppFunction`
+
+```{r}
+cppFunction('int add(int x, int y) {
+  int sum = x + y ;
+  return sum;
+}')
+```
+
+Now we have a function called `add` in our R environment.
+
+```{r}
+add(x = 3, y = 4)
+```
+
+# Object Creation
+
+## scalars
+
+`int x=2;`
+
+`double x=2.3;`
+
+`bool x=TRUE;`
+
+`String x("My Text");`
+
+## Vectors, Matrices, Lists and Datafames
+
+These can be created using the syntax `ObjectType VarName (Size)` syntax or using the appropriate `create` function
+
+### Vectors
+
+There are many ways to create vectors. Below are some ways to create C++ vectors with the equivalent R code.
+
+`NumericVector v (3);`
+
+```{r}
+v<- rep(0,3)
+v
+```
+
+`NumericVector v (3,1);`
+
+```{r}
+v<- rep(1,3)
+v
+```
+
+`NumericVector v = {1,2,3};`
+
+```{r}
+v<- c(1,2,3)
+v
+```
+
+`NumericVector v = NumericVector::create(1,2,3);`
+
+```{r}
+v<- c(1,2,3)
+v
+```
+
+`NumericVector v = NumericVector::create(Named("x",1), Named("y")=2 , _["z"]=3);`
+
+```{r}
+v<- c(x=1, y=2, z=3)
+v
+```
+
+### Matrices
+
+There are many ways to create matrices. Below are some ways to create C++ vectors with the equivalent R code. `NumericMatrix m(2);`
+
+```{r}
+m <- matrix(0, nrow=2, ncol=2)
+m
+```
+
+`NumericMatrix m(2,3);`
+
+```{r}
+m <- matrix(0, nrow=2, ncol=3)
+m
+```
+
+`NumericMatrix m3(2,3,v.begin());`
+
+```{r}
+m <- matrix(v, nrow=2, ncol=3)
+m
+```
+
+### Lists
+
+An empty list of a certain dimension can be created much like a vector. `List L (3)` is equivalent to
+
+```{r}
+L<- vector(mode = "list", length = 3)
+L
+```
+You can also use the `List::create()` function. `List L = List::create(v1, v2);` Creates list L from vector v1, v2
+
+```{r}
+v1<- c(1,2,3)
+v2<- c(4,5,6)
+
+L<- list(v1, v2)
+L
+```
+
+And you can create named Lists using either the `Named()` function or `_[]` `L = List::create(Named("name1") = v1 , _["name2"] = v2);`
+
+```{r}
+L<- list(name1=v1, name2=v2)
+L
+```
+
+### Dataframes
+
+`DataFrame df = DataFrame::create(Named("Name1")=v1, Named("Name2")= v2);`
+
+```{r}
+df<- data.frame(Name1=v1, Name2=v2)
+df
+```
+
+# Indexing
+
+## Vector
+
+```{r}
+v
+```
+
+Vectors can be subset with square brackets using integer/numerical or logical indices or by using names `v[number]`
+
+```{r}
+cppFunction('int Subset_Vect1(IntegerVector x, int idx) {
+  int out = x[idx];
+  return out;
+}')
+```
+
+```{r}
+Subset_Vect1(v, idx = 0)
+```
+
+`v[character]`
+
+```{r}
+cppFunction('IntegerVector Subset_Vect2(IntegerVector x, IntegerVector idx) {
+  IntegerVector out = x[idx];
+  return out;
+}')
+```
+
+```{r}
+Subset_Vect2(v, idx = c(0,2))
+```
+
+`v[logical]`
+
+```{r}
+cppFunction('IntegerVector Subset_Vect3(IntegerVector x, LogicalVector idx) {
+  IntegerVector out = x[idx];
+  return out;
+}')
+```
+
+```{r}
+Subset_Vect3(v, idx=c(TRUE, FALSE, TRUE))
+```
+
+You can also use indexing to reassign elements e.g. `v[1]=99`
+
+```{r}
+cppFunction('IntegerVector Replace_Vect_Elem(IntegerVector x, int idx, int sub_val) {
+  x[idx] = sub_val;
+  return x;
+}')
+```
+
+```{r}
+Replace_Vect_Elem(v, idx = 1, sub_val = 99)
+```
+
+## Matrix
+
+Matrices can be indexed using row/column positions enclosed in parentheses or with a single number enclosed in square brackets. Like with vectors this can be used to extract values or assign new values.
+
+Consider a 3 x 3 matrix would have the following indices:
+
++:------------:+:-------------:+:-------------:+
+| (0,0) or [0] | (0, 1) or [3] | (0, 2) or [6] |
++--------------+---------------+---------------+
+| (1,0) or [1] | (1, 1) or [4] | (1, 2) or [7] |
++--------------+---------------+---------------+
+| (2,0) or [2] | (2, 1) or [5] | (2, 2) or [8] |
++--------------+---------------+---------------+
+
+`_` can be used to refer to refer to an entire column/row like leaving it blank it R
+
+e.g. `m(_,0)` to get a vector containing all values from the first column
+
+## Lists
+
+Lists are be indexed the same way as vectors, with square brackets using integer/numerical or logical indices or by using names.
+
+```{r}
+cppFunction('List Subset_List(List x, IntegerVector idx) {
+  List out = x[idx];
+  return out;
+}')
+```
+
+```{r}
+Subset_List(list(c(1,2,3), c(4,5,6), c(7,8,9)),idx = c(1,2)) 
+```
+
+**CAUTION:** List elements are often references to other objects and will update if those objects are changed!
+
+```{r}
+cppFunction('List ListCaution(IntegerVector x,  IntegerVector y) {
+  List L = List::create(x,y);
+  x = x+1;
+  return L;
+}')
+```
+
+Notice that the first element of L updates because we changed x even though that was after we created L. This behavior is different from R.
+
+```{r}
+ListCaution(x = c(1,2,3), y = c(4,5,6))
+```
+
+## Dataframes
+
+Columns of data frames can be referenced using numeric vector (column number), a string vector (column name), and a logical vector. Individual elements cannot be referenced using row/column positions like in R.
+
+```{r}
+df
+```
+
+`IntegerVector v3 = df[0];`
+
+```{r}
+v3<- df[,1]
+v3
+```
+
+`IntegerVector v3 = df["Name1"];`
+
+```{r}
+v3<- df$Name1
+v3
+```
+
+**CAUTION:** Linking of objects like with lists can also happen easily with dataframes.For example, in the above code `IntegerVector v3 = df[0];` `v3` becomes a reference to `df[0]` and changing the values of `v3` also changes the values of `df[0]`. To avoid this you can use the `clone` function which will create a "deep copy" meaning it's its own object rather than a "shallow copy" that references another object.
+
+`IntegerVector v3 = clone(df[0]);` Now changing `v3` will not affect `df[0]`
+
+# Member Functions (aka Methods)
+
+Member functions (also called Methods) are functions that are attached to an individual object. You can call member functions `f()` of object `v` in the form of `v.f()`. Methods for vectors will also work on matrices, but matrices also have additional methods.
+
+Examples for vectors/lists include:
+
+`v.length()` is equivalent to the R code `length(v)`
+
+`v.names()` is equivalent to the R code `names(v)`
+
+`v.fill(number)` is equivalent to the R code `v[]<- number`
+
+Examples for matrices include:
+
+`m.nrow()` is equivalent to the R code `nrow(m)`
+
+`m.ncol()` is equivalent to the R code `ncol(m)`
+
+# Logical Operators and Conditionals
+
+Logical Operators in C++ ([Source: learnCpp.com](https://www.learncpp.com/cpp-tutorial/logical-operators/))
+
++-------------+--------+----------+-------------------------------------------------+
+| Operator    | Symbol | Form     | Operation                                       |
++=============+========+==========+=================================================+
+| Logical NOT | `!`    | `!x`     | true if x is false, or false if x is true       |
++-------------+--------+----------+-------------------------------------------------+
+| Logical AND | `&&`   | `x && y` | true if both x and y are true, false otherwise  |
++-------------+--------+----------+-------------------------------------------------+
+| Logical OR  | `||`   | `x || y` | true if either x or y are true, false otherwise |
++-------------+--------+----------+-------------------------------------------------+
+
+\* Note: `&` and `|` are bitwise operators and do not take or return logical values so usually you want the logical operators `&&` and `||` options mentioned in the table above. Bitwise operators rather than using TRUE and FALSE treat 1 as TRUE and anything else as FALSE.
+
+\< \> \>= \<= if/else \# Topics
+
+## If Else statements
+
+If else sttaements work very similarly to in R
+
+```{r}
+cppFunction('String Pos_Zero_Neg(double x){
+if(x<0) {
+  String out1("negative");
+  return(out1);
+  } else if(x > 0){
+  String out2("positive");
+  return(out2);
+  } else {
+      String out3("zero");
+      return(out3);
+      }
+}')
+```
+
+```{r}
+Pos_Zero_Neg(x = -1)
+```
+
+# Iteration/For Loops
+
+## Traditional For Loops
+
+Traditional for loops in C++ generally follows a syntax like this
+
+```{Rcpp eval=FALSE}
+for(intitialization; end condition; increment){
+  //Loop Body
+}
+```
+
+For example
+
+```{r}
+cppFunction('void testloop(IntegerVector v) {
+  for(int i = 0; i <= v.length(); ++i){
+    Rprintf("%i",i);
+  }
+}')
+```
+
+```{r}
+testloop(rep(NA_integer_, 5))
+```
+
+Here we've specified to loop through `i`. You provide a number representing a starting value, and then a number representing an ending value. The `++` indicates to increment i by one for each loop iteration. You can also decrement i by one using `--`.
+
+Positions can be specified using integers or using the `.begin` and `.end` methods along with iterators (e.g. `IntegerVector::iterator`), however, I find this method more confusing as printing `i` or `*i` to the console provided odd results and indexing `v[i]` did not work.
+
+`*i` represents the value of the element pointed by `i`
+
+```{r}
+cppFunction('double rcpp_sum(NumericVector v) {
+   double sum;
+   for(NumericVector::iterator i = v.begin(); i < v.end(); ++i) {
+   sum = sum + *i;
+   }
+  return sum;
+}')
+```
+
+```{r}
+rcpp_sum(c(2,4,6))
+```
+
+## Range Based For Loops
+
+As of C++11 (2011), C++ supports range based loops which is similar to how R defines loops. To do this, use the format:
+
+```{Rcpp eval=FALSE}
+for(type name : sequence){
+  //Loop Body
+}
+```
+
+For example:
+
+```{r}
+cppFunction('void testloop2(IntegerVector v) {
+  for(int i : v){
+    Rprintf("%i",i);
+  }
+}')
+
+```
+
+```{r}
+testloop2(c(1,3,5))
+```
+
+# R-like functions with Rcpp Sugar
+
+One of the benefits of using Rcpp and classes defined by Rcpp (instead of base C++) is that you get access to the "sugar" functions which are R-like functions that you can use in your C++ code. This includes functions such as `rep`, `seq`, `which_min`, `unique`, `min`, `mean`, `round`, `cos`, `lapply`, `na_omit`, `is_na`, `cbind`, `sample` [and many more](https://teuder.github.io/rcpp4everyone_en/210_rcpp_functions.html)
+
+# Example: Rolling Mean
+
+```{r}
+set.seed(5)
+v4<- rnorm(n = 1e7, mean = 5, sd = 10)
+```
+
+```{r}
+rolling_mean_R<- function(v, half_width){
+  n<- length(v)
+  out<- rep(NA_real_, n)
+  st_idx<- half_width+1
+  end_idx<- n-half_width
+  for (i in st_idx:end_idx) {
+    idx<- seq(i-half_width, i+half_width)
+    out[i]<- mean(v[idx])
+  }
+  return(out)
+  }
+```
+
+```{r}
+t1<- Sys.time()
+r1<- rolling_mean_R(v4, half_width = 100)
+t2<- Sys.time()
+difftime(t2, t1)
+```
+
+```{r}
+cppFunction('NumericVector rolling_mean_C(NumericVector v,  int half_width) {
+  int n = v.length();
+  NumericVector out = rep(NA_REAL, n);
+  int st_idx = half_width;
+  int end_idx= n-half_width-1;
+  for(int i : seq(st_idx, end_idx)){
+    IntegerVector idx = seq(i-half_width, i+half_width);
+    out[i]= mean(as<NumericVector>(v[idx]));
+    }
+  return(out);
+  }')
+```
+
+Note: When you access to vector elements using [] or () operator, the return type is not Vector itself but Vector::Proxy. Thus, it will cause compile error when you pass v[i] directly to some function, if the function only supports Vector type. To avoid compile error v[i] assign to new object or convert it to type T using as<T>().
+
+```{r}
+t3<- Sys.time()
+r2<- rolling_mean_C(v4, half_width = 100)
+t4<- Sys.time()
+difftime(t4, t3)
+```
+
+```{r}
+identical(r1,r2)
+```
+
+# Matrix Math
+
+```{r}
+m1<- matrix(nrow = 3, ncol = 3, data = 1:9)
+m2<- matrix(nrow = 3, ncol = 3, data = 10:18)
+```
+
+## Scalar Matrix Math
+
+We can perform math on a matrix using a scalar
+
+```{r}
+cppFunction('IntegerMatrix add_one(IntegerMatrix x) {
+  IntegerMatrix y = x+1 ;
+  return y;
+}')
+```
+
+```{r}
+add_one(matrix(nrow=3, ncol=3, data=m1))
+```
+
+## Math between two Matrices
+
+In R we can easily perform math between 2 matrices
+
+```{r}
+m1+m2
+```
+
+While we can do this for vectors in C++
+
+```{r}
+cppFunction('IntegerVector add_vect(IntegerVector x, IntegerVector y) {
+  IntegerVector z = x+y;
+  return z;
+}')
+```
+
+```{r}
+add_vect(c(1,2,3), c(4,5,6))
+```
+
+We get an error if we try this with matrices
+
+```{r error=TRUE}
+cppFunction('IntegerMatrix add_mat(IntegerMatrix x, IntegerMatrix y) {
+  IntegerMatrix z = x+y ;
+  return z;
+}')
+```
+
+Instead we must use a dedicated matrix math library such as armadillo or eigen. I will use armadillo which has a similar syntax to MATLAB. Note that although this is still a matrix it has a different class definition than the Rcpp based matrices and therefore has different [member functions/methods associated with it](http://arma.sourceforge.net/docs.html).
+
+```{r}
+cppFunction(depends = "RcppArmadillo", 'arma::mat add_mat2(arma::mat x, arma::mat y) {
+  arma::mat z = x+y ;
+  return z;
+}')
+```
+
+```{r}
+add_mat2(m1,m2)
+```
+
+# Sub-Functions
+
+If you'd like to make a C++ function that is composed of several other smaller functions, you can include them all in one single ".cpp" file where each separated by function is preced by `// [[Rcpp::export]]`. The header at the top should define all dependencies for all the functions e.g. if you need to access to the Armadillo library replace the default header with:
+
+```{Rcpp eval = FALSE}
+#include<RcppArmadillo.h>
+// [[Rcpp::depends(RcppArmadillo)]]
+using namespace Rcpp;
+using namespace arma;
+```
+
+# Using Rcpp in your R package
+
+To create a package using C++ use the following code:
+
+```{r eval=FALSE}
+devtools::create(getwd()) #Create package
+
+usethis::use_rcpp() #For just C++
+
+usethis::use_rcpp_armadillo() #For C++ with Armadillo library
+```
+
+Then:
+
+-   Copy and paste what `usethis` line of code says into location it says
+
+-   Save C++ functions under the "src" folder
+
+-   Generate the necessary modifications to your NAMESPACE by documenting them with Ctrl/Cmd + Shift + D.
+
+-   Click Build & Reload in the build pane, or press Ctrl/Cmd + Shift + B.
+
+For more details see link [here](https://r-pkgs.org/src.html#cpp).
+
+# C++11 and more
+
+C++ 11 is a standard of C++ newly established in 2011, it introduces new functionalities and notations. Compared with the previous standard, many new features have been added to make C++ even easier for beginners.
+
+It includes potentially useful features such as setting the type to `auto` for variables rather than having to be explicit, and range based looping.
+
+To enable C++11, add the following description somewhere in your Rcpp code, this is sufficient when you compile your rcpp code with `Rcpp::sourceCpp()` (though it seems to work fine without including this so maybe it is the default now?).
+
+`// [[Rcpp::plugins("cpp11")]]`
+
+If you want to enable C++11 in your package, add code below in the DESCRIPTION file of your package.
+
+SystemRequirements: C++11
+
+# Things to watch out for
+
+-   Indexing and out of bounds errors The most common source of of errors when converting from R to C++ is forgetting that R is 1 indexed and C++ is 0 indexed. Additionally, if you access an element outside the range of a vector in R it will return NA and if you add an element larger than the length it will grow the vector. In C++ you will get an out of bounds error wither during compilation or during function execution.
+
+-   integer vs double math In R we generally don't need to work if a number is an integer or a double. In C++ we do.
+
+```{r}
+cppFunction('double divide_int(int x,  int y) {
+  double out = x/y;
+  return(out);
+  }')
+```
+
+```{r}
+cppFunction('double divide_double(double x,  double y) {
+  double out = x/y;
+  return(out);
+  }')
+```
+
+```{r}
+divide_double(2,3)
+```
+
+```{r}
+divide_int(2,3)
+```
+
+Even though the output of the function is set as double, math involving only integers will evaluate to an integer (by truncating towards zero) and then it is converted to double.
+
+-   Shallow copies (See Rcpp for everyone) We saw examples of this with lists and dataframes where objects get linked and both update if one is updated. This can also happen with other Rcpp data types like vectors and matrices if you assign one variable equal to another variable.
+
+```{r}
+cppFunction('IntegerVector shallow_copies(IntegerVector x) {
+  IntegerVector y = x;
+  y = y+1;
+  return(x);
+  }')
+```
+
+```{r}
+shallow_copies(c(1,1,1))
+```
+
+# Resources
+
+[Rcpp for everyone](https://teuder.github.io/rcpp4everyone_en/) (my go to resource)
+
+[Rcpp vignettes](https://github.com/RcppCore/Rcpp/tree/master/vignettes/pdf) or use `vignette(package= "Rcpp")`
+
+[Rcpp Quick Reference Guide](https://dirk.eddelbuettel.com/code/rcpp/Rcpp-quickref.pdf)
+
+[Unofficial Rcpp API documentation](https://thecoatlessprofessor.com/programming/cpp/unofficial-rcpp-api-documentation/#sugar)
+
+[Advanced R: High Performance functions with Rcpp](http://adv-r.had.co.nz/Rcpp.html)
+
+[Rcpp Book](https://link.springer.com/book/10.1007%2F978-1-4614-6868-4)
+
+[Armadillo C++ Library](http://arma.sourceforge.net/docs.html)
+
+[Including C++ code in your R package](https://r-pkgs.org/src.html#cpp)
