@@ -16,10 +16,11 @@ knitr::opts_chunk$set(echo = TRUE)
 Note: Many of the examples and text shown here are adapted from or blatantly copied and pasted from [Rcpp for everyone](https://teuder.github.io/rcpp4everyone_en/)
 
 # R vs C++
+For code that you write to run it must be translated from the language the code was written into "machine code" (e.g. binary) which provides instructions for the CPU. There are two ways of doing this: an interpreter and a compiler. An interpreter translates a line of code to machine code, then runs it, and then moves onto the next line. Rather than running line by line, a compiler translates the entire source code to machine code and creates an executable that can be run later.
 
--   **R is a high level "interpreted" programming language**. This makes it fast to develop code, but slower to execute since it is run line by line.
+-   **R is an "interpreted" programming language**. This makes it fast to develop code, but slower to execute.
 
--   **C++ is a low level "compiled" language**. It takes more time to write code but it will execute faster. This is because the code must be compiled before execution. A compiler will figure out the optimal order to execute code rather than running it line by line.
+-   **C++ is a "compiled" language**. It takes more time to write code but it will execute faster.
 
 # When to use C++
 
@@ -34,7 +35,6 @@ C++ can be useful to speed up bottlenecks in your R code. For loops that are not
 # How to use C++ with R
 
 The `Rcpp` package and related packages provide a way to integrate C++ into your R code
-
 ```{r}
 library(Rcpp)
 ```
@@ -88,7 +88,7 @@ OutputType FunctionName(ArgumentType ArgumentName, ArgumentType2 ArgumentName2, 
   }
 ```
 
-In C++ code you must define the types and dimensions of your variables/outputs and cannot reassign them (you can update them).
+In C++ code you must declare the types and dimensions of your variables/outputs and cannot reassign them (you can update them).
 
 ## Source a C++ Function
 
@@ -188,7 +188,9 @@ v
 
 ### Matrices
 
-There are many ways to create matrices. Below are some ways to create C++ vectors with the equivalent R code. `NumericMatrix m(2);`
+There are many ways to create matrices. Below are some ways to create C++ vectors with the equivalent R code. 
+
+`NumericMatrix m(2);`
 
 ```{r}
 m <- matrix(0, nrow=2, ncol=2)
@@ -202,22 +204,27 @@ m <- matrix(0, nrow=2, ncol=3)
 m
 ```
 
-`NumericMatrix m3(2,3,v.begin());`
+`NumericMatrix m(2,3,v.begin());` for vectors with the same number of elements
 
 ```{r}
+v<- 1:6
 m <- matrix(v, nrow=2, ncol=3)
 m
 ```
 
 ### Lists
 
-An empty list of a certain dimension can be created much like a vector. `List L (3)` is equivalent to
+An empty list of a certain dimension can be created much like a vector. 
+
+`List L (3)` is equivalent to
 
 ```{r}
 L<- vector(mode = "list", length = 3)
 L
 ```
-You can also use the `List::create()` function. `List L = List::create(v1, v2);` Creates list L from vector v1, v2
+You can also use the `List::create()` function. 
+
+`List L = List::create(v1, v2);` Creates list L from vector v1, v2
 
 ```{r}
 v1<- c(1,2,3)
@@ -234,6 +241,23 @@ L<- list(name1=v1, name2=v2)
 L
 ```
 
+
+**CAUTION:** List elements are often references to other objects and will update if those objects are changed!
+
+```{r}
+cppFunction('List ListCaution(IntegerVector x,  IntegerVector y) {
+  List L = List::create(x,y);
+  x = x+1;
+  return L;
+}')
+```
+
+
+```{r}
+ListCaution(x = c(1,2,3), y = c(4,5,6))
+```
+Notice that the first element of `L` updates because we changed `x` even though that was after we created `L`. This behavior is different from R.
+
 ### Dataframes
 
 `DataFrame df = DataFrame::create(Named("Name1")=v1, Named("Name2")= v2);`
@@ -248,10 +272,14 @@ df
 ## Vector
 
 ```{r}
+v<- c(x=1,y=2,z=3)
 v
 ```
 
-Vectors can be subset with square brackets using integer/numerical or logical indices or by using names `v[number]`
+Vectors can be subset with square brackets using integer/numerical or logical indices or by using names 
+
+
+`v[number]`
 
 ```{r}
 cppFunction('int Subset_Vect1(IntegerVector x, int idx) {
@@ -263,9 +291,6 @@ cppFunction('int Subset_Vect1(IntegerVector x, int idx) {
 ```{r}
 Subset_Vect1(v, idx = 0)
 ```
-
-`v[character]`
-
 ```{r}
 cppFunction('IntegerVector Subset_Vect2(IntegerVector x, IntegerVector idx) {
   IntegerVector out = x[idx];
@@ -289,7 +314,29 @@ cppFunction('IntegerVector Subset_Vect3(IntegerVector x, LogicalVector idx) {
 ```{r}
 Subset_Vect3(v, idx=c(TRUE, FALSE, TRUE))
 ```
+`v[character]`
 
+```{r}
+cppFunction('int Subset_Vect4(IntegerVector x, String idx) {
+  int out = x[idx];
+  return out;
+}')
+```
+
+```{r}
+Subset_Vect4(v, idx = "y")
+```
+
+```{r}
+cppFunction('IntegerVector Subset_Vect5(IntegerVector x, CharacterVector idx) {
+  IntegerVector out = x[idx];
+  return out;
+}')
+```
+
+```{r}
+Subset_Vect5(v, idx = c("x", "y"))
+```
 You can also use indexing to reassign elements e.g. `v[1]=99`
 
 ```{r}
@@ -334,22 +381,6 @@ cppFunction('List Subset_List(List x, IntegerVector idx) {
 
 ```{r}
 Subset_List(list(c(1,2,3), c(4,5,6), c(7,8,9)),idx = c(1,2)) 
-```
-
-**CAUTION:** List elements are often references to other objects and will update if those objects are changed!
-
-```{r}
-cppFunction('List ListCaution(IntegerVector x,  IntegerVector y) {
-  List L = List::create(x,y);
-  x = x+1;
-  return L;
-}')
-```
-
-Notice that the first element of L updates because we changed x even though that was after we created L. This behavior is different from R.
-
-```{r}
-ListCaution(x = c(1,2,3), y = c(4,5,6))
 ```
 
 ## Dataframes
@@ -412,8 +443,6 @@ Logical Operators in C++ ([Source: learnCpp.com](https://www.learncpp.com/cpp-tu
 
 \* Note: `&` and `|` are bitwise operators and do not take or return logical values so usually you want the logical operators `&&` and `||` options mentioned in the table above. Bitwise operators rather than using TRUE and FALSE treat 1 as TRUE and anything else as FALSE.
 
-\< \> \>= \<= if/else \# Topics
-
 ## If Else statements
 
 If else sttaements work very similarly to in R
@@ -439,6 +468,8 @@ Pos_Zero_Neg(x = -1)
 
 # Iteration/For Loops
 
+Note: In C++ the "scoping" is different than in R. If a variable is declared in a loop, it is local to the loop and cannot be accessed outside the loop.
+
 ## Traditional For Loops
 
 Traditional for loops in C++ generally follows a syntax like this
@@ -460,7 +491,7 @@ cppFunction('void testloop(IntegerVector v) {
 ```
 
 ```{r}
-testloop(rep(NA_integer_, 5))
+testloop(rep(0,5))
 ```
 
 Here we've specified to loop through `i`. You provide a number representing a starting value, and then a number representing an ending value. The `++` indicates to increment i by one for each loop iteration. You can also decrement i by one using `--`.
@@ -554,7 +585,7 @@ cppFunction('NumericVector rolling_mean_C(NumericVector v,  int half_width) {
   }')
 ```
 
-Note: When you access to vector elements using [] or () operator, the return type is not Vector itself but Vector::Proxy. Thus, it will cause compile error when you pass v[i] directly to some function, if the function only supports Vector type. To avoid compile error v[i] assign to new object or convert it to type T using as<T>().
+Note: When you access to vector elements using `[]` or `()` operator, the return type is not Vector itself but Vector::Proxy. Thus, it will cause compile error when you pass `v[idx]` directly to some function, if the function only supports Vector type. To avoid compile error `v[idx]` needs to be assigned to a new object or converted to type T using `as<T>()`.
 
 ```{r}
 t3<- Sys.time()
@@ -569,11 +600,6 @@ identical(r1,r2)
 
 # Matrix Math
 
-```{r}
-m1<- matrix(nrow = 3, ncol = 3, data = 1:9)
-m2<- matrix(nrow = 3, ncol = 3, data = 10:18)
-```
-
 ## Scalar Matrix Math
 
 We can perform math on a matrix using a scalar
@@ -586,12 +612,17 @@ cppFunction('IntegerMatrix add_one(IntegerMatrix x) {
 ```
 
 ```{r}
-add_one(matrix(nrow=3, ncol=3, data=m1))
+add_one(matrix(1:9, nrow=3, ncol=3))
 ```
 
 ## Math between two Matrices
 
 In R we can easily perform math between 2 matrices
+
+```{r}
+m1<- matrix(nrow = 3, ncol = 3, data = 1:9)
+m2<- matrix(nrow = 3, ncol = 3, data = 10:18)
+```
 
 ```{r}
 m1+m2
@@ -630,6 +661,31 @@ cppFunction(depends = "RcppArmadillo", 'arma::mat add_mat2(arma::mat x, arma::ma
 
 ```{r}
 add_mat2(m1,m2)
+```
+
+# Using the R math Library
+R Math Library is a library that provides functions such as math and statistics defined by R. It is written in C and is not vectorized meaning it only returns single numbers not vectors. You can call these functions in Rcpp as they are defined in the `R::` namespace.
+
+I've written a function called `rcpp_rnorm` that vectorizes this and is equivalent to R's `rnorm` function.
+
+```{r}
+cppFunction('NumericVector rcpp_rnorm(int n, double mean, double sd) {
+  NumericVector out = rep(NA_REAL, n);
+  for(int i=0; i< n; ++i){
+    out[i] = R::rnorm(mean, sd);
+  }
+  return out;
+  }')
+```
+
+```{r}
+set.seed(5)
+norm_C<- rcpp_rnorm(n = 20, mean = 2, sd = 5)
+
+set.seed(5)
+norm_R<- rnorm(n = 20, mean = 2, sd = 5)
+
+identical(norm_C, norm_R)
 ```
 
 # Sub-Functions
@@ -681,10 +737,16 @@ If you want to enable C++11 in your package, add code below in the DESCRIPTION f
 
 SystemRequirements: C++11
 
+
+# Parallelize your code
+For even more speed you can parallelize your code with [RcppParallel](https://github.com/RcppCore/RcppParallel)
+
 # Things to watch out for
 
 -   Indexing and out of bounds errors The most common source of of errors when converting from R to C++ is forgetting that R is 1 indexed and C++ is 0 indexed. Additionally, if you access an element outside the range of a vector in R it will return NA and if you add an element larger than the length it will grow the vector. In C++ you will get an out of bounds error wither during compilation or during function execution.
 
+-   Remember semi-colons at the end of lines!
+-   Scoping with loops
 -   integer vs double math In R we generally don't need to work if a number is an integer or a double. In C++ we do.
 
 ```{r}
@@ -711,7 +773,7 @@ divide_int(2,3)
 
 Even though the output of the function is set as double, math involving only integers will evaluate to an integer (by truncating towards zero) and then it is converted to double.
 
--   Shallow copies (See Rcpp for everyone) We saw examples of this with lists and dataframes where objects get linked and both update if one is updated. This can also happen with other Rcpp data types like vectors and matrices if you assign one variable equal to another variable.
+-   [Shallow copies](https://teuder.github.io/rcpp4everyone_en/201_caution_vector.html#assigning-between-vectors). We saw examples of this with lists and dataframes where objects get linked and both update if one is updated. This can also happen with other Rcpp data types like vectors and matrices if you assign one variable equal to another variable.
 
 ```{r}
 cppFunction('IntegerVector shallow_copies(IntegerVector x) {
@@ -742,3 +804,9 @@ shallow_copies(c(1,1,1))
 [Armadillo C++ Library](http://arma.sourceforge.net/docs.html)
 
 [Including C++ code in your R package](https://r-pkgs.org/src.html#cpp)
+
+[Rcpp Github](https://github.com/RcppCore)
+
+[Rcpp mailing list](https://lists.r-forge.r-project.org/cgi-bin/mailman/listinfo/rcpp-devel)
+
+[A Deeper Inspection Into Compilation And Interpretation](https://medium.com/basecs/a-deeper-inspection-into-compilation-and-interpretation-d98952ebc842)
