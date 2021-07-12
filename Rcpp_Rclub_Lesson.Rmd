@@ -16,6 +16,7 @@ knitr::opts_chunk$set(echo = TRUE)
 Note: Many of the examples and text shown here are adapted from or blatantly copied and pasted from [Rcpp for everyone](https://teuder.github.io/rcpp4everyone_en/)
 
 # R vs C++
+
 For code that you write to run it must be translated from the language the code was written into "machine code" (e.g. binary) which provides instructions for the CPU. There are two ways of doing this: an interpreter and a compiler. An interpreter translates a line of code to machine code, then runs it, and then moves onto the next line. Rather than running line by line, a compiler translates the entire source code to machine code and creates an executable that can be run later.
 
 -   **R is an "interpreted" programming language**. This makes it fast to develop code, but slower to execute.
@@ -35,14 +36,15 @@ C++ can be useful to speed up bottlenecks in your R code. For loops that are not
 # How to use C++ with R
 
 The `Rcpp` package and related packages provide a way to integrate C++ into your R code
-```{r}
+
+```{r warning=FALSE}
 library(Rcpp)
 ```
 
 # C++ Basics
 
 -   Indexing starts at 0 not 1
--   You must declare the variables/outputs and their type and dimension
+-   You must declare the variable type and dimension and output type
 -   `//` indicates a comment in C++
 -   `;` indicates the end of a line of code
 
@@ -88,8 +90,6 @@ OutputType FunctionName(ArgumentType ArgumentName, ArgumentType2 ArgumentName2, 
   }
 ```
 
-In C++ code you must declare the types and dimensions of your variables/outputs and cannot reassign them (you can update them).
-
 ## Source a C++ Function
 
 To make a C++ function we can create a new C++ script and then source the file.
@@ -119,8 +119,8 @@ multiply(x = 3, y = 4)
 Alternatively, we can also define functions within an R script by placing the function as text within a call to `cppFunction`
 
 ```{r}
-cppFunction('int add(int x, int y) {
-  int sum = x + y ;
+cppFunction('double add(double x, double y) {
+  double sum = x + y ;
   return sum;
 }')
 ```
@@ -188,7 +188,7 @@ v
 
 ### Matrices
 
-There are many ways to create matrices. Below are some ways to create C++ vectors with the equivalent R code. 
+There are many ways to create matrices. Below are some ways to create C++ vectors with the equivalent R code.
 
 `NumericMatrix m(2);`
 
@@ -214,7 +214,7 @@ m
 
 ### Lists
 
-An empty list of a certain dimension can be created much like a vector. 
+An empty list of a certain dimension can be created much like a vector.
 
 `List L (3)` is equivalent to
 
@@ -222,7 +222,8 @@ An empty list of a certain dimension can be created much like a vector.
 L<- vector(mode = "list", length = 3)
 L
 ```
-You can also use the `List::create()` function. 
+
+You can also use the `List::create()` function.
 
 `List L = List::create(v1, v2);` Creates list L from vector v1, v2
 
@@ -241,7 +242,6 @@ L<- list(name1=v1, name2=v2)
 L
 ```
 
-
 **CAUTION:** List elements are often references to other objects and will update if those objects are changed!
 
 ```{r}
@@ -252,15 +252,15 @@ cppFunction('List ListCaution(IntegerVector x,  IntegerVector y) {
 }')
 ```
 
-
 ```{r}
 ListCaution(x = c(1,2,3), y = c(4,5,6))
 ```
+
 Notice that the first element of `L` updates because we changed `x` even though that was after we created `L`. This behavior is different from R.
 
 ### Dataframes
 
-`DataFrame df = DataFrame::create(Named("Name1")=v1, Named("Name2")= v2);`
+`DataFrame df = DataFrame::create(Named("Name1")=v1, _["Name2"]= v2);`
 
 ```{r}
 df<- data.frame(Name1=v1, Name2=v2)
@@ -276,10 +276,9 @@ v<- c(x=1,y=2,z=3)
 v
 ```
 
-Vectors can be subset with square brackets using integer/numerical or logical indices or by using names 
+Vectors can be subset with square brackets using integer/numerical or logical indices or by using names
 
-
-`v[number]`
+`v[int]`
 
 ```{r}
 cppFunction('int Subset_Vect1(IntegerVector x, int idx) {
@@ -291,6 +290,9 @@ cppFunction('int Subset_Vect1(IntegerVector x, int idx) {
 ```{r}
 Subset_Vect1(v, idx = 0)
 ```
+
+`v[IntegerVector]`
+
 ```{r}
 cppFunction('IntegerVector Subset_Vect2(IntegerVector x, IntegerVector idx) {
   IntegerVector out = x[idx];
@@ -302,7 +304,7 @@ cppFunction('IntegerVector Subset_Vect2(IntegerVector x, IntegerVector idx) {
 Subset_Vect2(v, idx = c(0,2))
 ```
 
-`v[logical]`
+`v[LogicalVector]`
 
 ```{r}
 cppFunction('IntegerVector Subset_Vect3(IntegerVector x, LogicalVector idx) {
@@ -314,7 +316,8 @@ cppFunction('IntegerVector Subset_Vect3(IntegerVector x, LogicalVector idx) {
 ```{r}
 Subset_Vect3(v, idx=c(TRUE, FALSE, TRUE))
 ```
-`v[character]`
+
+`v[String]`
 
 ```{r}
 cppFunction('int Subset_Vect4(IntegerVector x, String idx) {
@@ -327,6 +330,8 @@ cppFunction('int Subset_Vect4(IntegerVector x, String idx) {
 Subset_Vect4(v, idx = "y")
 ```
 
+`v[CharacterVector]`
+
 ```{r}
 cppFunction('IntegerVector Subset_Vect5(IntegerVector x, CharacterVector idx) {
   IntegerVector out = x[idx];
@@ -337,6 +342,7 @@ cppFunction('IntegerVector Subset_Vect5(IntegerVector x, CharacterVector idx) {
 ```{r}
 Subset_Vect5(v, idx = c("x", "y"))
 ```
+
 You can also use indexing to reassign elements e.g. `v[1]=99`
 
 ```{r}
@@ -484,34 +490,34 @@ For example
 
 ```{r}
 cppFunction('void testloop(IntegerVector v) {
-  for(int i = 0; i <= v.length(); ++i){
-    Rprintf("%i",i);
+  for(int i = 0; i < v.length(); ++i){
+    Rcout << "i: " << i << "\\n"; //print i
+    Rcout << "v[i]: " << v[i] << "\\n"; //print v[i]
   }
 }')
 ```
 
 ```{r}
-testloop(rep(0,5))
+testloop(c(2,4,6))
 ```
 
 Here we've specified to loop through `i`. You provide a number representing a starting value, and then a number representing an ending value. The `++` indicates to increment i by one for each loop iteration. You can also decrement i by one using `--`.
 
-Positions can be specified using integers or using the `.begin` and `.end` methods along with iterators (e.g. `IntegerVector::iterator`), however, I find this method more confusing as printing `i` or `*i` to the console provided odd results and indexing `v[i]` did not work.
+Positions can be specified using integers or using the `.begin` and `.end` methods along with iterators (e.g. `IntegerVector::iterator`). This method is a bit more confusing as and printing as `i` to the console provides odd results and indexing `v[i]` does not work. Instead you must use `*i`. This can however be useful when using C++ STL algorithms.
 
 `*i` represents the value of the element pointed by `i`
 
 ```{r}
-cppFunction('double rcpp_sum(NumericVector v) {
-   double sum;
-   for(NumericVector::iterator i = v.begin(); i < v.end(); ++i) {
-   sum = sum + *i;
-   }
-  return sum;
+cppFunction('void testloop2(NumericVector v) {
+  for(NumericVector::iterator i = v.begin(); i < v.end(); ++i) {
+    Rcout << "i: " << i << "\\n"; //print i
+    Rcout << "*i: " << *i << "\\n"; //print *i
+    }
 }')
 ```
 
 ```{r}
-rcpp_sum(c(2,4,6))
+testloop2(c(2,4,6))
 ```
 
 ## Range Based For Loops
@@ -527,16 +533,16 @@ for(type name : sequence){
 For example:
 
 ```{r}
-cppFunction('void testloop2(IntegerVector v) {
+cppFunction('void testloop3(IntegerVector v) {
   for(int i : v){
-    Rprintf("%i",i);
-  }
+    Rcout << "i: " << i << "\\n"; //print i
+    }
 }')
 
 ```
 
 ```{r}
-testloop2(c(1,3,5))
+testloop3(c(1,3,5))
 ```
 
 # R-like functions with Rcpp Sugar
@@ -664,6 +670,7 @@ add_mat2(m1,m2)
 ```
 
 # Using the R math Library
+
 R Math Library is a library that provides functions such as math and statistics defined by R. It is written in C and is not vectorized meaning it only returns single numbers not vectors. You can call these functions in Rcpp as they are defined in the `R::` namespace.
 
 I've written a function called `rcpp_rnorm` that vectorizes this and is equivalent to R's `rnorm` function.
@@ -737,8 +744,8 @@ If you want to enable C++11 in your package, add code below in the DESCRIPTION f
 
 SystemRequirements: C++11
 
-
 # Parallelize your code
+
 For even more speed you can parallelize your code with [RcppParallel](https://github.com/RcppCore/RcppParallel)
 
 # Things to watch out for
@@ -746,7 +753,9 @@ For even more speed you can parallelize your code with [RcppParallel](https://gi
 -   Indexing and out of bounds errors The most common source of of errors when converting from R to C++ is forgetting that R is 1 indexed and C++ is 0 indexed. Additionally, if you access an element outside the range of a vector in R it will return NA and if you add an element larger than the length it will grow the vector. In C++ you will get an out of bounds error wither during compilation or during function execution.
 
 -   Remember semi-colons at the end of lines!
+
 -   Scoping with loops
+
 -   integer vs double math In R we generally don't need to work if a number is an integer or a double. In C++ we do.
 
 ```{r}

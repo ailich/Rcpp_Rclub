@@ -2,7 +2,7 @@
 using namespace Rcpp;
 
 // [[Rcpp::export]]
-int multiply(int x, int y) {
-  int mult = x * y ;
+double multiply(double x, double y) {
+  double mult = x * y ;
   return mult;
 }
